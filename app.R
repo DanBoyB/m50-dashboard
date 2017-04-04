@@ -6,21 +6,17 @@ library(tidyr)
 library(readr)
 library(lubridate)
 
-wd <- "/home/dan/R/projects/m50-perf-ind"
+combStats <- readRDS("data/combStats.rds") %>% 
+    ungroup() %>% 
+    mutate(month = month(month, label = TRUE, abbr = FALSE))
 
-vkm <- readRDS(paste(wd, "output/vkm/vkm2015.rds", sep = "/"))
-stableFlow <- readRDS(paste(wd, "output/stableFlow/stableFlow.rds", sep = "/"))
-bufferMisery <- readRDS(paste(wd, "output/bufferMisery/bufferMisery.rds", sep = "/"))
+lev <- readRDS("data/nblevels.rds") %>% 
+    append(readRDS("data/sblevels.rds"))
 
-sections <- read_csv(paste(wd, "data/links.csv", sep = "/")) %>% 
-  filter(direction == "Northbound") %>% 
-  select(Sec) %>% 
-  mutate(`Vehicle Km` = 100,
-        `% Stable Flow` = 100,
-        `Buffer Time Index` = 100,
-        `Misery Index` = 100,
-        `No. Incidents` = 100,
-        `Ave. Response Time` = 100)
+lev[-c(10:11)]
+
+sections <- data_frame(sectionName = unique(combStats$sectionName)) %>% 
+    mutate(sectionName = factor(sectionName, levels = lev[-c(10:11)]))
 
 
 years <- c(2015)
@@ -47,12 +43,11 @@ ui <- dashboardPage(
                                 "PM Peak Hour" = 7
                                 ), 
                  selected = 1),
-    radioButtons("direction", label = "Traffic Direction",
-                 choices = list("All" = 1, 
-                                "Northbound" = 2,
-                                "Southbound" = 3
+    checkboxGroupInput("direction", label = "Traffic Direction",
+                 choices = list("Northbound",
+                                "Southbound"
                                 ), 
-                 selected = 1)
+                 selected = "Northbound")
   ),
   dashboardBody(
     # Boxes need to be put in a row (or column)
@@ -77,51 +72,60 @@ ui <- dashboardPage(
 )
 
 server <- function(input, output) {
- 
-  output$totalVkm <- renderValueBox({
-    valueBox(
-      formatC(100, format = "d", big.mark = ','),
-      "Million Vehicle Km on M50",
-      icon = icon("car"),
-      color = "blue")
+    
+    
+    table <- reactive({
+        combStats %>% 
+            filter(month == input$month,
+                   direction == input$direction) %>% 
+            select(-month, -direction)
     })
+        
+    
+    output$totalVkm <- renderValueBox({
+        valueBox(
+            formatC(100, format = "d", big.mark = ','),
+            "Million Vehicle Km on M50",
+            icon = icon("car"),
+            color = "blue")
+        })
   
-  output$totalStableFlow <- renderValueBox({
-    valueBox(
-      formatC(100, format = "d", big.mark = ','),
-      "% Stable Flow on M50",
-      icon = icon("thumbs-up"),
-      color = "green")
-  })
+    output$totalStableFlow <- renderValueBox({
+        valueBox(
+            formatC(100, format = "d", big.mark = ','),
+            "% Stable Flow on M50",
+            icon = icon("thumbs-up"),
+            color = "green")
+        })
   
-  output$totalBuffer <- renderValueBox({
-    valueBox(
-      formatC(100, format = "d", big.mark = ','),
-      "M50 Buffer Time Index",
-      icon = icon("clock-o"),
-      color = "orange")
-    })
+      output$totalBuffer <- renderValueBox({
+          valueBox(
+              formatC(100, format = "d", big.mark = ','),
+              "M50 Buffer Time Index",
+              icon = icon("clock-o"),
+              color = "orange")
+          })
   
-  output$totalMisery <- renderValueBox({
-    valueBox(
-      formatC(100, format = "d", big.mark = ','),
-      "M50 Misery Index",
-      icon = icon("frown-o"),
-      color = "red")
-  })
+        output$totalMisery <- renderValueBox({
+            valueBox(
+                formatC(100, format = "d", big.mark = ','),
+                "M50 Misery Index",
+                icon = icon("frown-o"),
+                color = "red")
+            })
   
-  output$mymap <- renderLeaflet({
-    leaflet(width = 5, height = 10) %>%
-      addTiles() %>%
-      fitBounds(lat1 = 53.437327, lng1 = -6.186063, lat2 = 53.218444, lng2 = -6.414639) 
-    # %>% 
-    #   # Add default OpenStreetMap map tiles
-    #   addMarkers(, popup="M50") 
-      
-  })
-  
-  output$table <- renderTable(sections)
-
-  }
+          output$mymap <- renderLeaflet({
+              leaflet(width = 5, height = 10) %>%
+                  addTiles() %>%
+                  fitBounds(lat1 = 53.437327, lng1 = -6.186063, lat2 = 53.218444, lng2 = -6.414639) 
+              # %>% 
+              #   # Add default OpenStreetMap map tiles
+              #   addMarkers(, popup="M50") 
+              
+                })
+          
+            output$table <- renderTable(table())
+            
+        }
 
 shinyApp(ui, server)
