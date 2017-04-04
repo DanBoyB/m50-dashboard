@@ -6,18 +6,18 @@ library(tidyr)
 library(readr)
 library(lubridate)
 
+links <- read_csv("data/links.csv") %>% 
+    slice(2:11) %>% 
+    select(siteID, Sec) %>% 
+    mutate(siteID = as.factor(siteID))
+
 combStats <- readRDS("data/combStats.rds") %>% 
     ungroup() %>% 
-    mutate(month = month(month, label = TRUE, abbr = FALSE))
+    mutate(month = month(month, label = TRUE, abbr = FALSE)) %>% 
+    left_join(links, by = "siteID") 
 
-lev <- readRDS("data/nblevels.rds") %>% 
-    append(readRDS("data/sblevels.rds"))
-
-lev[-c(10:11)]
-
-sections <- data_frame(sectionName = unique(combStats$sectionName)) %>% 
-    mutate(sectionName = factor(sectionName, levels = lev[-c(10:11)]))
-
+lev <- c("N11 - CHE", "CHE - CAR", "CAR - BAL", "BAL - FIR", "FIR - N81", "N81 - N7", "N7 - N4",
+         "N4 - N3", "N3 - N2")
 
 years <- c(2015)
 months <- month(seq.Date(as.Date("2015-01-01"), 
@@ -34,16 +34,15 @@ ui <- dashboardPage(
     selectInput("month", label = "Select Month:",
                 choices = months),
     radioButtons("period", label = "Analysis Period",
-                 choices = list("All" = 1, 
-                                "Off Peak / Holiday Periods" = 2,
-                                "AM Peak Shoulders" = 3,
-                                "AM Peak Hour" = 4,
-                                "Inter Peak" = 5,
-                                "PM Peak Shoulders" = 6,
-                                "PM Peak Hour" = 7
+                 choices = list("Off Peak",
+                                "AM Peak Shoulders",
+                                "AM Peak Hour",
+                                "Inter Peak",
+                                "PM Peak Shoulders",
+                                "PM Peak Hour"
                                 ), 
-                 selected = 1),
-    checkboxGroupInput("direction", label = "Traffic Direction",
+                 selected = "AM Peak Hour"),
+    radioButtons("direction", label = "Traffic Direction",
                  choices = list("Northbound",
                                 "Southbound"
                                 ), 
@@ -74,17 +73,44 @@ ui <- dashboardPage(
 server <- function(input, output) {
     
     
-    table <- reactive({
+    statTable <- reactive({
         combStats %>% 
             filter(month == input$month,
-                   direction == input$direction) %>% 
-            select(-month, -direction)
+                   direction == input$direction, 
+                   period == input$period) %>%
+            group_by(Sec, month, period, direction) %>% 
+            summarise(stableHours = sum(stableHours),
+                      monthlyHours = sum(monthlyHours),
+                      buffTimeIndex = weighted.mean(buffTimeIndex, vkm),
+                      miseryIndex = weighted.mean(miseryIndex, vkm),
+                      vkm = sum(vkm),
+                      mvkm = sum(mvkm)) %>% 
+            mutate(percStable = stableHours / monthlyHours) %>% 
+            ungroup() %>% 
+            select(Sec, mvkm, percStable, buffTimeIndex, miseryIndex) %>% 
+            mutate(Sec = factor(Sec, levels = lev)) %>% 
+            arrange(Sec)
+    })
+    
+    globalStats <- reactive({
+        combStats %>% 
+            filter(month == input$month) %>% 
+            summarise(stableHours = sum(stableHours),
+                      monthlyHours = sum(monthlyHours),
+                      buffTimeIndex = weighted.mean(buffTimeIndex, vkm),
+                      miseryIndex = weighted.mean(miseryIndex, vkm),
+                      vkm = sum(vkm),
+                      mvkm = sum(mvkm)) %>% 
+            mutate(percStable = stableHours / monthlyHours) %>% 
+            ungroup() %>% 
+            select(mvkm, percStable, buffTimeIndex, miseryIndex)
     })
         
     
     output$totalVkm <- renderValueBox({
         valueBox(
-            formatC(100, format = "d", big.mark = ','),
+            formatC(unlist(globalStats()$mvkm),
+                    format = "d", big.mark = ','),
             "Million Vehicle Km on M50",
             icon = icon("car"),
             color = "blue")
@@ -92,7 +118,8 @@ server <- function(input, output) {
   
     output$totalStableFlow <- renderValueBox({
         valueBox(
-            formatC(100, format = "d", big.mark = ','),
+            formatC(unlist(globalStats()$percStable) * 100,
+                    format = "d", big.mark = ','),
             "% Stable Flow on M50",
             icon = icon("thumbs-up"),
             color = "green")
@@ -100,7 +127,8 @@ server <- function(input, output) {
   
       output$totalBuffer <- renderValueBox({
           valueBox(
-              formatC(100, format = "d", big.mark = ','),
+              formatC(unlist(globalStats()$buffTimeIndex),
+                      format = "d", big.mark = ','),
               "M50 Buffer Time Index",
               icon = icon("clock-o"),
               color = "orange")
@@ -108,7 +136,8 @@ server <- function(input, output) {
   
         output$totalMisery <- renderValueBox({
             valueBox(
-                formatC(100, format = "d", big.mark = ','),
+                formatC(unlist(globalStats()$miseryIndex),
+                        format = "d", big.mark = ','),
                 "M50 Misery Index",
                 icon = icon("frown-o"),
                 color = "red")
@@ -124,7 +153,7 @@ server <- function(input, output) {
               
                 })
           
-            output$table <- renderTable(table())
+            output$table <- renderTable(statTable())
             
         }
 
