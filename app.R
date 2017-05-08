@@ -11,9 +11,13 @@ source("R/load-data.R", local = TRUE)
 ################################################################################################
 # Shiny UI
 
+dbHeader <- dashboardHeader()
+dbHeader$children[[2]]$children <-  tags$a(h1 = "M50 Test dashboard",
+                                           tags$img(src = 'logo.png', height = '40'))
+
 ui <- dashboardPage(
-  dashboardHeader(title = "M50 Test dashboard"),
-  dashboardSidebar(
+    dbHeader,
+    dashboardSidebar(
     selectInput("year", label = "Select Year:",
                 choices = years),
     selectInput("month", label = "Select Month:",
