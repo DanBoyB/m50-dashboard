@@ -1,7 +1,7 @@
 
 output$map <- renderLeaflet({
     leaflet(m50_secs, width = 5, height = 10) %>%
-        addTiles() %>%
+        addProviderTiles(providers$CartoDB.Positron) %>% 
         setView(-6.2883, 53.33, zoom = 11) %>% 
         addPolylines(color = ~pal(sec),
                      highlightOptions = highlightOptions(color = "white", weight = 2,
