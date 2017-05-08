@@ -1,16 +1,16 @@
 body <- dashboardBody(
-    tags$head(tags$style(HTML('
-                              .skin-blue .main-header .logo {
-                              background-color: #0000b8;
-                              }
-                              .skin-blue .main-header .logo:hover {
-                              background-color: #0000b8;
-                              }
-                              /* navbar (rest of the header) */
-                              .skin-blue .main-header .navbar {
-                              background-color: #0000b8;
-                              }
-                              '))),
+    # tags$head(tags$style(HTML('
+    #                           .skin-blue .main-header .logo {
+    #                           background-color: #0000b8;
+    #                           }
+    #                           .skin-blue .main-header .logo:hover {
+    #                           background-color: #0000b8;
+    #                           }
+    #                           /* navbar (rest of the header) */
+    #                           .skin-blue .main-header .navbar {
+    #                           background-color: #0000b8;
+    #                           }
+    #                           '))),
     # Boxes need to be put in a row (or column)
     fluidRow(
       box(title = "Monthly Summary Indicators", width = 12,
